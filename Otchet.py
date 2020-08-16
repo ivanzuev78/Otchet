@@ -1,12 +1,20 @@
 import openpyxl as opx
 import datetime
+from openpyxl.styles import Border, Side
+from openpyxl.styles import Alignment
+import itertools
 
 
 worker = {}
 themes = []
-date_start = datetime.datetime(2020, 1, 1)
+date_start = datetime.datetime(2000, 1, 1)
 date_end = datetime.datetime(2020, 12, 15)
+tema_report = {}
 
+thin_border = Border(left=Side(style='thin'),
+                         right=Side(style='thin'),
+                         top=Side(style='thin'),
+                         bottom=Side(style='thin'))
 
 def path_to_excel(name: str) -> None:
     """
@@ -75,7 +83,8 @@ def svod_tabl_count(tabl: list):
     for row in tabl:  # Берем строку
         if type(row[3]) is type(date_start):  # Смотрим, является ли клетка с датой датой, а не заглавной строкой
             if date_start <= row[3] <= date_end:  # Смотрим, находится ли дата в нужном диапазоне
-                row[4] = input_name(row[4])  # Форматируем ФИО по шаблону
+                if row[4]:
+                    row[4] = input_name(row[4])  # Форматируем ФИО по шаблону
                 if row[4] not in worker:  # Если нет работника в словаре, то создаем
                     worker[row[4]] = {}
                 if row[1] not in worker[row[4]]:  # Если нет темы у работника, то создаем
@@ -144,7 +153,8 @@ def production_count(tabl: list, name: str):
     return None
 
 
-def conductor(svod, production, report):
+def conductor(svod='Сводная таблица.xlsm',
+              production='Общий перечень продукции ОВНТ2.xlsx', report='Общий перечень отчётов.xlsm'):
     """
     Функция читает все файлы и прогоняет по ним обсчитыающие функции
     :param svod: Имя файла "Сводная таблица"
@@ -190,8 +200,8 @@ def short_show(massiv):
                 word_numb += b
             else:
                 word_prefix += b
-        if word_prefix == current_prefix and current_numb == int(word_numb) - 1:
-            current_numb = int(word_numb)
+        if word_prefix == current_prefix and int(current_numb) == int(word_numb) - 1:
+            current_numb = word_numb
             if word == massiv[-1]:
                 if current_numb != first_numb:
                     fine.append(f'{current_prefix}{first_numb}-{current_numb}')
@@ -204,7 +214,7 @@ def short_show(massiv):
                 else:
                     fine.append(f'{current_prefix}{first_numb}')
             current_prefix = word_prefix
-            first_numb = int(word_numb)
+            first_numb = word_numb
             current_numb = first_numb
             if word == massiv[-1] and current_prefix:
                 if current_numb != first_numb:
@@ -214,8 +224,96 @@ def short_show(massiv):
     return fine
 
 
+
+def worker_into_thems():
+    global tema_report
+    for tema in themes:  # Проходим по всем темам
+        for name in worker:  # Проходим по всем сотрудникам
+            if tema in worker[name]:  # Смотрим есть ли тема у сотрудника
+                if tema not in tema_report:  # Проверяем есть ли тема в отчётном словаре
+                    tema_report[tema] = {}
+                if name not in tema_report[tema]:  # Проверяем есть ли сотрудник в этой теме
+                    tema_report[tema][name] = {'образцы': [], 'плёнки': [], 'отчёты': []}
+                for i in worker[name][tema]['образцы']:
+                    tema_report[tema][name]['образцы'].append(i)
+                for i in worker[name][tema]['плёнки']:
+                    tema_report[tema][name]['плёнки'].append(i)
+                for i in worker[name][tema]['отчёты']:
+                    tema_report[tema][name]['отчёты'].append(i)
+
+
+def short_show_report(massiv):
+    massiv_to_return = []
+    for otchet in massiv:
+        word = ''
+        for b in otchet:
+            if b.isdigit():
+                word += b
+            else:
+                break
+        massiv_to_return.append(word)
+
+    return massiv_to_return
+
+
+def make_excel():
+    wb = opx.Workbook()
+    ws_title = ['Выпущенные опытно-промышленные партии',
+                'Изготовленные лабораторные образцы и компоненты',
+                'Написанные отчеты', 'Выпущенные рецептуры и ТК', 'Проведенные промышленные нанесения']
+    ws = wb.active
+    ws_count_row = []
+    for tema in tema_report:
+        ws_title.insert(0, tema)
+        ws.append(ws_title)
+        ws_count_row.append(True)
+        for name in tema_report[tema]:
+            current_list_to_append = [name]
+            cell = ''
+            for i in (short_show(tema_report[tema][name]['образцы']) + short_show(tema_report[tema][name]['плёнки'])):
+                cell += f'{i}'
+                if i != (short_show(tema_report[tema][name]['образцы']) + short_show(tema_report[tema][name]['плёнки']))[-1]:
+                    cell += ', '
+            current_list_to_append.append('')
+            current_list_to_append.append(cell)
+            cell = ''
+            for i in short_show_report(tema_report[tema][name]['отчёты']):
+                cell += f'{i}'
+                if i != short_show_report(tema_report[tema][name]['отчёты'])[-1]:
+                    cell += ', '
+            current_list_to_append.append(cell)
+            for i in range(2):
+                current_list_to_append.append(' ')
+            ws.append(current_list_to_append)
+            ws_count_row.append(True)
+        ws_title.pop(0)
+        ws.append(['Еще одна таблица'])
+        ws_count_row.append(False)
+        for index, row, row_numb in zip(ws_count_row, ws, itertools.count(1, 1)):
+            if index:
+                for cell in row:
+                    cell.border = thin_border
+                    cell.alignment = Alignment(wrapText=True)
+            else:
+                ws.merge_cells(f'A{row_numb}:F{row_numb}')
+
+    ws.page_setup.paperSize = '9'
+
+    ws.page_setup.orientation = ws.ORIENTATION_LANDSCAPE
+    ws.column_dimensions['A'].width = 18
+    ws.column_dimensions['B'].width = 22
+    ws.column_dimensions['C'].width = 30
+    ws.column_dimensions['D'].width = 20
+    ws.column_dimensions['E'].width = 17
+    ws.column_dimensions['F'].width = 18
+    wb.save('Otchet.xlsx')
+
+def  import_data():
+    conductor('Сводная таблица.xlsm', 'Общий перечень продукции ОВНТ2.xlsx', 'Общий перечень отчётов.xlsm')
+    return
+
 if __name__ == '__main__':
-    name = 'Зуев И.А.'
+    # name = 'Зуев И.А.'
     # svod_tabl_count(read_excel('Сводная таблица.xlsm'))
     # production_count(read_excel('Общий перечень продукции ОВНТ2.xlsx', col=3, sheet=5), input_name(name))
     # report_count(read_excel('Общий перечень отчётов.xlsm', col=7))
@@ -223,11 +321,18 @@ if __name__ == '__main__':
     # for name in opx.load_workbook('Общий перечень продукции ОВНТ2.xlsx').
 
     conductor('Сводная таблица.xlsm', 'Общий перечень продукции ОВНТ2.xlsx', 'Общий перечень отчётов.xlsm')
+
     # for name in worker:
     #     print(name)
-    #     for i in worker[name]:
-    #         print(i, ": ", worker[input_name(name)][i])
+    #     for tema in worker[name]:
+    #         print(tema, ' : ', worker[name][tema]['отчёты'])
     #     print('----------------------------------------------------------------------------------------------')
     # print(themes)
-    print(worker['Пихуров Д.В.']['ППУ']['образцы'])
-    print(short_show(worker['Пихуров Д.В.']['ППУ']['образцы']))
+
+    worker_into_thems()
+    make_excel()
+        # print('----------------------------------------------------------------------------------------------')
+    # print(worker['Пихуров Д.В.']['ППУ']['образцы'])
+    # print(short_show(worker['Пихуров Д.В.']['ППУ']['образцы']))
+
+
