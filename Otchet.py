@@ -49,7 +49,8 @@ def read_excel(ws, col: int = 5) -> list:
             if index == col:
                 break
             current_row.append(cell.value)  # Добавляем значение ячейки в массив
-        sv_tabl.append(current_row)  # Добавляем массив в список
+        if any(current_row):
+            sv_tabl.append(current_row)  # Добавляем массив в список
     return sv_tabl
 
 
@@ -145,18 +146,40 @@ def production_count(tabl: list, name: str):
     :return: None
     """
     global worker
+    col_flag = [False, False, False]
+    mark_col = 0
+    date_col = 1
+    tema_row = 2
+
 
     for row in tabl:  # Берем строку
-        if type(row[1]) is type(date_start):  # Смотрим, является ли клетка с датой датой, а не заглавной строкой
-            if date_start <= row[1] <= date_end:
+        # if not all(col_flag):
+        #     print(row)
+        for col, cell in enumerate(row):
+            if cell and not all(col_flag):
+                if type(cell) is str and 'аркиров' in cell:
+                    mark_col = col
+                    col_flag[0] = True
+                if type(cell) is str and ('Дата' in cell or 'дата' in cell):
+                    date_col = col
+                    col_flag[1] = True
+                if type(cell) is str and ('именован' in cell or 'истем' in cell):
+                    tema_row = col
+                    col_flag[2] = True
+                # if all(col_flag):
+                #     print(mark_col, date_col, tema_row, ':', len(row))
+                #     break
+        if type(row[date_col]) is type(date_start):  # Смотрим, является ли клетка с датой датой, а не заглавной строкой
+            if date_start <= row[date_col] <= date_end:
                 if name not in worker:  # Если нет работника в словаре, то создаем
                     worker[name] = {}
-                if row[2]:  # Если клетка с темой не пустая
-                    if row[2] not in worker[name]:  # Если нет темы у работника, то создаем
-                        worker[name][row[2]] = {'образцы': [], 'плёнки': [], 'отчёты': []}
-                    worker[name][row[2]]['образцы'].append(row[0])  # Добавляем номер пленки работнику в тему
-                if row[2] not in themes and row[2]:
-                    themes.append(row[2])
+                if row[tema_row]:  # Если клетка с темой не пустая
+                    if row[tema_row] not in worker[name]:  # Если нет темы у работника, то создаем
+                        worker[name][row[tema_row]] = {'образцы': [], 'плёнки': [], 'отчёты': []}
+                    # Добавляем номер пленки работнику в тему
+                    worker[name][row[tema_row]]['образцы'].append(row[mark_col])
+                if row[tema_row] not in themes and row[tema_row]:
+                    themes.append(row[tema_row])
     return None
 
 
@@ -190,7 +213,7 @@ def conductor(svod='Сводная таблица.xlsm',
         if name not in worker:
             if name not in good_names:
                 continue
-        production_count(read_excel(production_wb[name], col=3), good_names[name])
+        production_count(read_excel(production_wb[name], col=10), good_names[name])
 
     yield process_bar, f'Список отчётов'
     report_wb = opx.load_workbook(filename=report)
@@ -371,10 +394,6 @@ def make_excel_noname():
         ws.append(current_list_to_append)
         ws_count_row.append(True)
 
-
-        # for _ in range(2):
-        #     ws.append([' '])
-        #     ws_count_row.append(False)
         for index, row, row_numb in zip(ws_count_row, ws, itertools.count(1, 1)):
             if index:
                 for cell in row:
@@ -395,16 +414,14 @@ def make_excel_noname():
     wb.save('Otchet_noname.xlsx')
 
 
-
-
 def import_data():
     conductor('Сводная таблица.xlsm', 'Общий перечень продукции ОВНТ2.xlsx', 'Общий перечень отчётов.xlsm')
     return
 
 
 if __name__ == '__main__':
-
-    conductor('Сводная таблица.xlsm', 'Общий перечень продукции ОВНТ.xlsx', 'Общий перечень отчётов.xlsm')
+    for i in conductor('Сводная таблица.xlsm', 'Общий перечень продукции ОВНТ.xlsx', 'Общий перечень отчётов.xlsm'):
+        pass
 
     # for name in worker:
     #     print(name)
