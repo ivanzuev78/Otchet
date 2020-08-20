@@ -5,14 +5,12 @@ import sys
 import Otchet
 from time import localtime
 
-Form, _ = uic.loadUiType("main_window.ui")
 
-
-class Ui(QtWidgets.QMainWindow, Form):
+class Ui(QtWidgets.QMainWindow, uic.loadUiType("main_window.ui")[0]):
     kvartal_dict = {0: {'start': [1, 1], 'end': [3, 31]},
-                    1: {'start': [1, 4], 'end': [6, 30]},
-                    2: {'start': [1, 7], 'end': [9, 30]},
-                    3: {'start': [1, 10], 'end': [12, 31]}}
+                    1: {'start': [4, 1], 'end': [6, 30]},
+                    2: {'start': [7, 1], 'end': [9, 30]},
+                    3: {'start': [10, 1], 'end': [12, 31]}}
 
     def __init__(self):
         super(Ui, self).__init__()
@@ -20,12 +18,17 @@ class Ui(QtWidgets.QMainWindow, Form):
         self.update_bot.clicked.connect(self.update_it)
         self.make_xl_bot.clicked.connect(self.make_xl)
         self.make_xl_bot_2.clicked.connect(self.make_xl_noname)
-        self.try_bot.clicked.connect(self.try_but)
+        self.settings.clicked.connect(self.settings_window)
 
         if localtime()[1] > 1:
             self.year.setDate(QDate(localtime()[0], 1, 1))
         else:
             self.year.setDate(QDate(localtime()[0] - 1, 1, 1))
+
+    def settings_window(self):
+        self.window = SecondWindow(self)
+        self.setEnabled(False)
+        self.window.show()
 
     def try_but(self):
         pass
@@ -56,7 +59,6 @@ class Ui(QtWidgets.QMainWindow, Form):
         for i in self.year.dateTime().toString()[len(self.year.dateTime().toString()) - 4::]:
             year += i
         year = int(year)
-        self.kvartal.currentIndex()
         Otchet.change_date([year] + self.kvartal_dict[self.kvartal.currentIndex()]['start'],
                            [year] + self.kvartal_dict[self.kvartal.currentIndex()]['end'])
 
@@ -77,6 +79,23 @@ class Ui(QtWidgets.QMainWindow, Form):
             self.update_it()
             Otchet.make_excel_noname()
             self.current_action.setText('Отчёт сформирован!')
+
+
+class SecondWindow(QtWidgets.QMainWindow, uic.loadUiType("setings.ui")[0]):
+    def __init__(self, main_wind):
+        self.main_window = main_wind
+        super(SecondWindow, self).__init__()
+        self.setupUi(self)
+        self.close_but.clicked.connect(self.close)
+
+    def closeEvent(self, event):
+        self.main_window.setEnabled(True)
+        event.accept()
+        pass
+        # Переопределить colseEvent
+        # w.setEnabled(True)
+        # event.accept()
+
 
 if __name__ == "__main__":
 
