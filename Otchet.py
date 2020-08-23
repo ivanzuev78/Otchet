@@ -1,22 +1,39 @@
+import os
+import pickle
 import openpyxl as opx
 import datetime
 from openpyxl.styles import Border, Side
 from openpyxl.styles import Alignment
 import itertools
-from time import sleep
 
-worker = {}
-themes = []
+
+
 date_start = datetime.datetime(2000, 1, 1)
 date_end = datetime.datetime(2020, 12, 15)
+worker = {}
+replaced_worker = {}
+themes = []
 tema_report = {}
+unknown_thems = []
+svod_row = 0
+production_row = {}
+report_row = 0
+svod_data = []
+production_data = {}
+prod_names = []
+report_data = []
 
+
+good_names = {'Катя': 'Шаповал Е.С.', 'Женя': 'Гусева Е.Н.', 'Дима': 'Пихуров Д.В.', 'Вова': 'Васильев В.А.',
+              'Иван': 'Зуев И.А.', 'Артур': 'Калимуллин А.В.'}
 thin_border = Border(left=Side(style='thin'),
                      right=Side(style='thin'),
                      top=Side(style='thin'),
                      bottom=Side(style='thin'))
 
 
+
+# Меняет даты
 def change_date(start, end):
     global date_start, date_end
     date_start = datetime.datetime(start[0], start[1], start[2])
@@ -54,6 +71,7 @@ def read_excel(ws, col: int = 5) -> list:
     return sv_tabl
 
 
+# Форматирует ФИО к стандартному формату
 def input_name(name: str) -> str:
     """
     :param name: str (ФамилияИ.О. в любом формате)
@@ -74,6 +92,7 @@ def input_name(name: str) -> str:
     return integ  # Возвращаем ФИО
 
 
+# Обработка данных из сводной таблицы
 def svod_tabl_count(tabl: list):
     """
     Элементы массива (номер колонки - 1):
@@ -89,6 +108,8 @@ def svod_tabl_count(tabl: list):
     global worker, themes
 
     for row in tabl:  # Берем строку
+        if type(row[1]) is not str:
+            row[1] = str(row[1])
         if type(row[3]) is type(date_start):  # Смотрим, является ли клетка с датой датой, а не заглавной строкой
             if date_start <= row[3] <= date_end:  # Смотрим, находится ли дата в нужном диапазоне
                 if row[4]:
@@ -104,6 +125,7 @@ def svod_tabl_count(tabl: list):
     return None
 
 
+# # Обработка данных из перечня отчётов
 def report_count(tabl):
     """
     0) Номер отчёта
@@ -117,6 +139,8 @@ def report_count(tabl):
     :return:
     """
     for row in tabl:  # Берем строку
+        if type(row[6]) is not str:
+            row[6] = str(row[6])
         if type(row[5]) is type(date_start):  # Смотрим, является ли клетка с датой датой, а не заглавной строкой
             if date_start <= row[5] <= date_end:  # Смотрим, находится ли дата в нужном диапазоне
                 row[2] = input_name(row[2])  # Форматируем ФИО по шаблону
@@ -135,6 +159,7 @@ def report_count(tabl):
                     themes.append(row[6])
 
 
+# Обработка данных из перечня продукции
 def production_count(tabl: list, name: str):
     """
     Элементы массива (номер колонки - 1):
@@ -149,12 +174,9 @@ def production_count(tabl: list, name: str):
     col_flag = [False, False, False]
     mark_col = 0
     date_col = 1
-    tema_row = 2
-
+    tema_col = 2
 
     for row in tabl:  # Берем строку
-        # if not all(col_flag):
-        #     print(row)
         for col, cell in enumerate(row):
             if cell and not all(col_flag):
                 if type(cell) is str and 'аркиров' in cell:
@@ -164,27 +186,67 @@ def production_count(tabl: list, name: str):
                     date_col = col
                     col_flag[1] = True
                 if type(cell) is str and ('именован' in cell or 'истем' in cell):
-                    tema_row = col
+                    tema_col = col
                     col_flag[2] = True
-                # if all(col_flag):
-                #     print(mark_col, date_col, tema_row, ':', len(row))
-                #     break
+        if type(row[tema_col]) is not str and all(col_flag):
+            row[tema_col] = str(row[tema_col])
         if type(row[date_col]) is type(date_start):  # Смотрим, является ли клетка с датой датой, а не заглавной строкой
             if date_start <= row[date_col] <= date_end:
                 if name not in worker:  # Если нет работника в словаре, то создаем
                     worker[name] = {}
-                if row[tema_row]:  # Если клетка с темой не пустая
-                    if row[tema_row] not in worker[name]:  # Если нет темы у работника, то создаем
-                        worker[name][row[tema_row]] = {'образцы': [], 'плёнки': [], 'отчёты': []}
+                if row[tema_col]:  # Если клетка с темой не пустая
+                    if row[tema_col] not in worker[name]:  # Если нет темы у работника, то создаем
+                        worker[name][row[tema_col]] = {'образцы': [], 'плёнки': [], 'отчёты': []}
                     # Добавляем номер пленки работнику в тему
-                    worker[name][row[tema_row]]['образцы'].append(row[mark_col])
-                if row[tema_row] not in themes and row[tema_row]:
-                    themes.append(row[tema_row])
+                    worker[name][row[tema_col]]['образцы'].append(row[mark_col])
+                if row[tema_col] not in themes and row[tema_col]:
+                    themes.append(row[tema_col])
     return None
 
 
-def conductor(svod='Сводная таблица.xlsm',
-              production='Общий перечень продукции ОВНТ.xlsx', report='Общий перечень отчётов.xlsm'):
+def reader(svod='Сводная таблица.xlsm',
+              production='Общий перечень продукции ОВНТ.xlsx', report='Общий перечень отчётов.xlsm', force_read=False):
+    global worker, themes, svod_data, prod_names, production_data, report_data, svod_row, production_row, report_row
+
+
+    # load_data()
+    progressbar = 10
+    yield progressbar
+
+    if not svod_data or force_read:
+        svod_wb = opx.load_workbook(filename=svod)
+        svod_ws = svod_wb.active
+        svod_data = read_excel(svod_ws)
+
+    progressbar += 20
+    yield progressbar
+
+    if not report_data or force_read:
+        report_wb = opx.load_workbook(filename=report)
+        report_ws = report_wb.active
+        report_data = read_excel(report_ws, col=7)
+
+    progressbar += 20
+    yield progressbar
+
+    if not production_data or force_read:
+        production_wb = opx.load_workbook(filename=production)
+        prod_names = production_wb.sheetnames
+        for name in prod_names:
+            if name not in worker:
+                if name not in good_names:
+                    continue
+            production_data[name] = read_excel(production_wb[name], col=5)
+            progressbar += 5
+            yield progressbar
+
+    yield  100
+    # save_data()
+
+
+
+# Управляет обработчиками
+def conductor():
     """
     Функция читает все файлы и прогоняет по ним обсчитыающие функции
     :param svod: Имя файла "Сводная таблица"
@@ -192,36 +254,24 @@ def conductor(svod='Сводная таблица.xlsm',
     :param report: Имя файла "Общий перечень отчётов"
     :return: None
     """
-    process_bar = 5
-    global worker, themes, tema_report
+
+    global worker, themes, tema_report, unknown_thems
+
     worker = {}
     themes = []
     tema_report = {}
-    yield process_bar, 'Сводная таблица'
-    svod_wb = opx.load_workbook(filename=svod)
-    svod_ws = svod_wb.active
-    svod_tabl_count(read_excel(svod_ws))
-    process_bar += 15
+    unknown_thems = []
 
-    production_wb = opx.load_workbook(filename=production)
-    prod_names = production_wb.sheetnames
-    good_names = {'Катя': 'Шаповал Е.С.', 'Женя': 'Гусева Е.Н.', 'Дима': 'Пихуров Д.В.', 'Вова': 'Васильев В.А.',
-                  'Иван': 'Зуев И.А.', 'Артур': 'Калимуллин А.В.'}
-    for name in prod_names:
-        process_bar += 5
-        yield process_bar, f'Список образцов: {name}'
-        if name not in worker:
-            if name not in good_names:
-                continue
-        production_count(read_excel(production_wb[name], col=10), good_names[name])
+    svod_tabl_count(svod_data)
 
-    yield process_bar, f'Список отчётов'
-    report_wb = opx.load_workbook(filename=report)
-    report_ws = report_wb.active
-    report_count(read_excel(report_ws, col=7))
-    yield 100, 'Готово!'
+    for name in production_data:
+        production_count(production_data[name], good_names[name])
+
+    report_count(report_data)
 
 
+
+# Сворачивает плёнки и образцы в компактный вид
 def short_show(massiv):
     """
     Функция позволяет сворачивать штучные образцы в дефисные группы
@@ -264,23 +314,38 @@ def short_show(massiv):
     return fine
 
 
+# Переделывает данные отталкиваясь от темы
 def worker_into_thems():
     global tema_report
     for tema in themes:  # Проходим по всем темам
-        for name in worker:  # Проходим по всем сотрудникам
-            if tema in worker[name]:  # Смотрим есть ли тема у сотрудника
+        for name in replaced_worker:  # Проходим по всем сотрудникам
+            if tema in replaced_worker[name]:  # Смотрим есть ли тема у сотрудника
                 if tema not in tema_report:  # Проверяем есть ли тема в отчётном словаре
                     tema_report[tema] = {}
                 if name not in tema_report[tema]:  # Проверяем есть ли сотрудник в этой теме
                     tema_report[tema][name] = {'образцы': [], 'плёнки': [], 'отчёты': []}
-                for i in worker[name][tema]['образцы']:
+                for i in replaced_worker[name][tema]['образцы']:
                     tema_report[tema][name]['образцы'].append(i)
-                for i in worker[name][tema]['плёнки']:
+                for i in replaced_worker[name][tema]['плёнки']:
                     tema_report[tema][name]['плёнки'].append(i)
-                for i in worker[name][tema]['отчёты']:
+                for i in replaced_worker[name][tema]['отчёты']:
                     tema_report[tema][name]['отчёты'].append(i)
 
 
+def worker_into_thems_2():
+    for name in replaced_worker:
+        for tema in replaced_worker[name]:
+            if tema not in tema_report:
+                tema_report[tema] = {}
+                tema_report[tema][name] = replaced_worker[name][tema]
+            elif name not in tema_report[tema]:
+                tema_report[tema][name] = replaced_worker[name][tema]
+            else:
+                for i in replaced_worker[name][tema]:
+                    tema_report[tema][name][i] += replaced_worker[name][tema][i]
+
+
+# Сворачивает отчёты в компактный вид
 def short_show_report(massiv):
     massiv_to_return = []
     for otchet in massiv:
@@ -295,6 +360,7 @@ def short_show_report(massiv):
     return massiv_to_return
 
 
+# Создает отчёт с именами
 def make_excel():
     wb = opx.Workbook()
     ws_title = ['Выпущенные опытно-промышленные партии',
@@ -354,6 +420,7 @@ def make_excel():
     wb.save('Otchet.xlsx')
 
 
+# Создает отчёт без имен
 def make_excel_noname():
     ws_title = ['Темы', 'Выпущенные опытно-промышленные партии',
                 'Изготовленные лабораторные образцы и компоненты',
@@ -414,21 +481,88 @@ def make_excel_noname():
     wb.save('Otchet_noname.xlsx')
 
 
-def import_data():
-    conductor('Сводная таблица.xlsm', 'Общий перечень продукции ОВНТ2.xlsx', 'Общий перечень отчётов.xlsm')
-    return
+# Заменяет темы правильными наименованиями
+def replace_names_thems(theme_list, known_themes):
+    global themes, unknown_thems, replaced_worker
+    known_themes_local = []
+    for tema in theme_list:
+        for tema_2 in theme_list[tema]:
+            known_themes_local.append(tema_2)
+        if tema not in known_themes_local:
+            known_themes_local.append(tema)
+    unknown_thems = []
+    replaced_worker = {}
+    for name in worker:
+        for tema_to_check in worker[name]:
+            if tema_to_check in known_themes_local:
+                for global_tema in theme_list:
+                    if tema_to_check in theme_list[global_tema]:
+                        if name in replaced_worker:
+                            if global_tema in replaced_worker[name]:
+                                for i in replaced_worker[name][global_tema]:
+                                    replaced_worker[name][global_tema][i] += worker[name][tema_to_check][i]
+                            else:
+                                replaced_worker[name][global_tema] = worker[name][tema_to_check]
+                        else:
+                            replaced_worker[name] = {}
+                            replaced_worker[name][global_tema] = worker[name][tema_to_check]
+
+            else:
+                if tema_to_check not in unknown_thems:
+                    unknown_thems.append(tema_to_check)
+                if name not in replaced_worker:
+                    replaced_worker[name] = {}
+                if tema_to_check not in replaced_worker[name]:
+                    replaced_worker[name][tema_to_check] = {}
+                replaced_worker[name][tema_to_check] = worker[name][tema_to_check]
+
+    themes = known_themes_local + unknown_thems
+    print(known_themes_local)
+    print(unknown_thems)
+
+    # for tema in themes.copy():
+    #     for global_tema in theme_list:
+    #         if tema in theme_list[global_tema]:
+    #             themes.pop(themes.index(tema))
+
+
+def save_data():
+    data_to_save = {'svod_data': svod_data, 'report_data': report_data, 'production_data': production_data,
+                    'report_row': report_row, 'svod_row': svod_row, 'production_row': production_row}
+    with open('data.otchet', 'wb') as f:
+        pickle.dump(data_to_save, f)
+    # with open('data2.otchet', 'wb') as f:
+    #     pickle.dump(production_data, f)
+
+
+def load_data():
+    global svod_data, production_data, report_data, report_row, svod_row, production_row
+    if os.path.exists('data.otchet'):
+        with open('data.otchet', 'rb') as f:
+            data_to_load = pickle.load(f)
+
+            svod_data = data_to_load['svod_data']
+            svod_row = data_to_load['svod_row']
+            production_data = data_to_load['production_data']
+            production_row = data_to_load['production_row']
+            report_data = data_to_load['report_data']
+            report_row = data_to_load['report_row']
+
+
+
+
+
+    for name in production_data:
+        print(name, len(production_data[name]))
+
+    pass
+
 
 
 if __name__ == '__main__':
     for i in conductor('Сводная таблица.xlsm', 'Общий перечень продукции ОВНТ.xlsx', 'Общий перечень отчётов.xlsm'):
         pass
 
-    # for name in worker:
-    #     print(name)
-    #     for tema in worker[name]:
-    #         print(tema, ' : ', worker[name][tema]['отчёты'])
-    #     print('----------------------------------------------------------------------------------------------')
-    # print(themes)
 
     worker_into_thems()
     make_excel()
