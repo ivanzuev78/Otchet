@@ -400,13 +400,19 @@ def make_excel():
         for _ in range(2):
             ws.append([' '])
             ws_count_row.append(False)
+        first_row = True
         for index, row, row_numb in zip(ws_count_row, ws, itertools.count(1, 1)):
             if index:
                 for cell in row:
+                    if first_row:
+                        cell.font = opx.styles.Font(bold=True)
+                        first_row = False
                     cell.border = thin_border
                     cell.alignment = Alignment(wrapText=True)
+
             else:
                 ws.merge_cells(f'A{row_numb}:F{row_numb}')
+                first_row = True
 
     ws.page_setup.paperSize = '9'
 
@@ -418,7 +424,7 @@ def make_excel():
     ws.column_dimensions['E'].width = 17
     ws.column_dimensions['F'].width = 18
     wb.save('Otchet.xlsx')
-
+    return os.getcwd() + '\Otchet.xlsx'
 
 # Создает отчёт без имен
 def make_excel_noname():
@@ -440,18 +446,19 @@ def make_excel_noname():
         for name in tema_report[tema]:
             sum_obraz += len(tema_report[tema][name]['образцы']) + len(tema_report[tema][name]['плёнки'])
             sum_otchet += len(tema_report[tema][name]['отчёты'])
-            for i in (short_show(tema_report[tema][name]['образцы']) +
-                      short_show(tema_report[tema][name]['плёнки'])):
+            for i in short_show(tema_report[tema][name]['образцы']):
+                cell += f'{i}, '
+            if cell:
+                cell = cell[:-2] + '\n'
+            for i in short_show(tema_report[tema][name]['плёнки']):
                 cell += f'{i}, '
             for i in short_show_report(tema_report[tema][name]['отчёты']):
                 cell2 += f'{i}, '
 
         if cell:
-            cell = cell[:-2]
-            cell += f'\n\nИтого: {sum_obraz}'
+            cell = cell[:-2] + f'\n\nИтого: {sum_obraz}'
         if cell2:
-            cell2 = cell2[:-2]
-            cell2 += f'\n\nИтого: {sum_otchet}'
+            cell2 = cell2[:-2] + f'\n\nИтого: {sum_otchet}'
 
         current_list_to_append.append('')
         current_list_to_append.append(cell)
@@ -479,7 +486,7 @@ def make_excel_noname():
     ws.column_dimensions['E'].width = 17
     ws.column_dimensions['F'].width = 18
     wb.save('Otchet_noname.xlsx')
-
+    return os.getcwd() + '\Otchet_noname.xlsx'
 
 # Заменяет темы правильными наименованиями
 def replace_names_thems(theme_list, known_themes):

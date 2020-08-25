@@ -87,22 +87,26 @@ class Ui(QtWidgets.QMainWindow, uic.loadUiType("main_window.ui")[0]):
                            [year] + self.kvartal_dict[self.kvartal.currentIndex()]['end'])
 
     def make_xl(self):
-        if Otchet.themes:
-            Otchet.make_excel()
-            self.current_action.setText('Отчёт сформирован!')
-        else:
+        if not Otchet.themes:
             self.update_it()
-            Otchet.make_excel()
-            self.current_action.setText('Отчёт сформирован!')
+        path = Otchet.make_excel()
+
+        # try:
+        self.current_action.setText('Отчёт сформирован!')
+        if self.open_check.isChecked():
+            os.startfile(path)
+        # except:
+        #     self.current_action.setText('Отчёт ой!')
+
+
 
     def make_xl_noname(self):
         if Otchet.themes:
-            Otchet.make_excel_noname()
-            self.current_action.setText('Отчёт сформирован!')
-        else:
             self.update_it()
-            Otchet.make_excel_noname()
-            self.current_action.setText('Отчёт сформирован!')
+        path = Otchet.make_excel_noname()
+        self.current_action.setText('Отчёт сформирован!')
+        if self.open_check_2.isChecked():
+            os.startfile(path)
 
     def load_settings(self):
         if os.path.exists('settings.otchet'):
@@ -142,7 +146,7 @@ class SecondWindow(QtWidgets.QMainWindow, uic.loadUiType("settings.ui")[0]):
         self.tema_add_But.clicked.connect(self.add_global_tema)
         self.official_tems.itemSelectionChanged.connect(self.update_not_official_tems)
         self.move_tema_but.clicked.connect(self.move_tema)
-        self.save_but.clicked.connect(self.try_it)
+        # self.save_but.clicked.connect(self.try_it)
         self.remove_tema_but.clicked.connect(self.remove_tema)
         self.del_tema_but.clicked.connect(self.remove_global_tema)
 
